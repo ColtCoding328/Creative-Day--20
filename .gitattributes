@@ -1,2 +1,212 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+#include "Arduino.h"
+#include <TM1637Display.h>
+#include <Keypad.h>
+#include <BasicEncoder.h>
+
+const byte DISPLAY_CLK = 6;
+const byte DISPLAY_DIO = 5;
+
+
+const byte ROTARY_CTRL_CLK_PIN = 2;
+const byte ROTARY_CTRL_DIO_PIN = 3;
+BasicEncoder rotary_controller(ROTARY_CTRL_CLK_PIN, ROTARY_CTRL_DIO_PIN);
+
+const byte INITIAL_RATE = 500; 
+int scroll_rate = INITIAL_RATE;
+
+const byte XXXX[] = {
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+};
+const byte XXXL[] = {
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  SEG_D | SEG_E | SEG_F,
+};
+const byte XXLO[] = {
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  SEG_D | SEG_E | SEG_F,
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,
+};
+const byte XLOS[] = {
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  SEG_D | SEG_E | SEG_F,
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
+};
+const byte LOST[] = {
+  SEG_D | SEG_E | SEG_F,
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_C,
+};
+const byte OST[] = {
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_C,
+  SEG_A,
+};
+const byte ST_[] = {
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_C,
+  SEG_A,
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,  
+};
+const byte T_I[] = {
+  SEG_A | SEG_B | SEG_C,
+  SEG_A,
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,  
+  SEG_B | SEG_C,
+};
+const byte T_IN[] = {
+  SEG_A,
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,  
+  SEG_B | SEG_C,
+  SEG_C | SEG_E | SEG_G
+};
+const byte _IN_[] = {
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,  
+  SEG_B | SEG_C,
+  SEG_C | SEG_E | SEG_G,
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,
+};
+const byte IN_S[] = {
+  SEG_B | SEG_C,
+  SEG_C | SEG_E | SEG_G,
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
+};
+const byte N_SP[] = {
+  SEG_C | SEG_E | SEG_G,
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_E | SEG_F | SEG_G,
+};
+const byte _SPA[] = {
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_E | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G,
+};
+const byte SPAC[] = {
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_E | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G,
+  SEG_A | SEG_D | SEG_E | SEG_F, SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,
+};
+const byte PACE[] = {
+  SEG_A | SEG_B | SEG_E | SEG_F | SEG_G,
+  SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G,
+  SEG_A | SEG_D | SEG_E | SEG_F, 
+  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,
+};
+const byte ACEX[] = {
+  SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G,
+  SEG_A | SEG_D | SEG_E | SEG_F, 
+  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+};
+const byte CEXX[] = {
+  SEG_A | SEG_D | SEG_E | SEG_F, 
+  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+};
+const byte EXXX[] = {
+  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+};
+const byte XXT[] = {
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,
+  SEG_A ,
+  SEG_A | SEG_E | SEG_F,
+ 
+};
+
+TM1637Display display_panel = TM1637Display(DISPLAY_CLK, DISPLAY_DIO);
+//-----------------------------------------------------------------------------------------------------------------------
+void setup() {
+  // put your setup code here, to run once:
+  
+  Serial.begin(9600);
+  Serial.print("INITIAL INITIAL_RATE: ");
+  Serial.println(INITIAL_RATE);
+  display_panel.setBrightness(7);
+
+attachInterrupt(digitalPinToInterrupt(ROTARY_CTRL_CLK_PIN), updateEncoder, CHANGE);
+attachInterrupt(digitalPinToInterrupt(ROTARY_CTRL_DIO_PIN), updateEncoder, CHANGE);
+}
+//-----------------------------------------------------------------------------------------------------------------------
+void loop() {
+
+  if (rotary_controller.get_change()){
+    scroll_rate = INITIAL_RATE - (rotary_controller.get_count()*10);
+    Serial.print("Rotary Count: ");
+    Serial.println(rotary_controller.get_count());
+    display_panel.showNumberDec(scroll_rate);
+    delay(200);
+    Serial.print("Scroll Rate: ");
+    Serial.println(scroll_rate);
+    Lost_In_Space();
+  }
+  else{
+  Lost_In_Space();
+  }
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+
+void updateEncoder(){
+  rotary_controller.service();
+}
+
+//-------------------------------------------------------------------------------------------------------------------------
+
+void Lost_In_Space(){
+
+  display_panel.setSegments(XXXX);
+  delay(scroll_rate);
+  display_panel.setSegments(XXXL);
+  delay(scroll_rate);
+  display_panel.setSegments(XXLO);
+  delay(scroll_rate);
+  display_panel.setSegments(XLOS);
+  delay(scroll_rate);
+  display_panel.setSegments(LOST);
+  delay(scroll_rate);
+  display_panel.setSegments(OST);
+  delay(scroll_rate);
+  display_panel.setSegments(ST_);
+  delay(scroll_rate);
+  display_panel.setSegments(T_I);
+  delay(scroll_rate);
+  display_panel.setSegments(T_IN);
+  delay(scroll_rate);
+  display_panel.setSegments(_IN_);
+  delay(scroll_rate);
+  display_panel.setSegments(IN_S);
+  delay(scroll_rate);
+  display_panel.setSegments(N_SP);
+  delay(scroll_rate);
+  display_panel.setSegments(_SPA);
+  delay(scroll_rate);
+  display_panel.setSegments(SPAC);
+  delay(scroll_rate);
+  display_panel.setSegments(PACE);
+  delay(scroll_rate);
+  display_panel.setSegments(ACEX);
+  delay(scroll_rate);
+  display_panel.setSegments(CEXX);
+  delay(scroll_rate);
+  display_panel.setSegments(EXXX);
+  delay(scroll_rate);
+  display_panel.setSegments(XXXX);
+  delay(1500);
+}
