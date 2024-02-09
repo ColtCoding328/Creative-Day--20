@@ -1,0 +1,96 @@
+#include "Arduino.h"
+#include <TM1637Display.h>
+#include <Keypad.h>
+#include <BasicEncoder.h>
+
+const byte DISPLAY_CLK = 6;
+const byte DISPLAY_DIO = 5;
+
+
+const byte ROTARY_CTRL_CLK_PIN = 2;
+const byte ROTARY_CTRL_DIO_PIN = 3;
+BasicEncoder rotary_controller(ROTARY_CTRL_CLK_PIN, ROTARY_CTRL_DIO_PIN);
+
+const unsigned int INITIAL_RATE = 500; 
+int scroll_rate = INITIAL_RATE;
+const unsigned int RATE_FLASH = 500;
+
+const char LOST_IN_SPACE[] = {
+  SEG_D | SEG_E | SEG_F,                          // L
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,  // O
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,          // S
+  SEG_A | SEG_B | SEG_C,                          // T
+  SEG_A,                                          // T2
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,   // UNDERSCORE
+  SEG_B | SEG_C,                                  // I
+  SEG_C | SEG_E | SEG_G,                          // N
+  0b00000000 |  0b00000000 |  0b00000000 |  SEG_D |  0b00000000 |  0b00000000 |  0b00000000,   // UNDERSCORE
+  SEG_A | SEG_C | SEG_D | SEG_F | SEG_G,          // S
+  SEG_A | SEG_B | SEG_E | SEG_F | SEG_G,          // P
+  SEG_A | SEG_B | SEG_C | SEG_E | SEG_F | SEG_G,  // A
+  SEG_A | SEG_D | SEG_E | SEG_F,                  // C
+  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G,          // E
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,   // BLANK
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,   // BLANK
+  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000 |  0b00000000,   // BLANK
+};
+
+
+TM1637Display display_panel = TM1637Display(DISPLAY_CLK, DISPLAY_DIO);
+//-----------------------------------------------------------------------------------------------------------------------
+void setup() {
+
+  Serial.begin(9600);
+  Serial.print("INITIAL_RATE: ");
+  Serial.println(INITIAL_RATE);
+  display_panel.setBrightness(1);
+
+attachInterrupt(digitalPinToInterrupt(ROTARY_CTRL_CLK_PIN), updateEncoder, CHANGE);
+attachInterrupt(digitalPinToInterrupt(ROTARY_CTRL_DIO_PIN), updateEncoder, CHANGE);
+}
+//-----------------------------------------------------------------------------------------------------------------------
+void loop() {
+
+  int i,j,k;
+
+  display_panel.clear();
+  delay(500);
+
+  for (i=3., j=1; i>=0 || j<5; i-- , j++){
+      display_panel.setSegments(LOST_IN_SPACE,j,i);
+      delay(scroll_rate);  
+    if (rotary_controller.get_change()){
+      update_rate();
+    }
+  }
+    
+  for (k=1; k<14; k++){
+
+    display_panel.setSegments(LOST_IN_SPACE+k,4,0);
+    delay(scroll_rate);
+    if (rotary_controller.get_change()){
+      update_rate();
+    }
+  }
+}
+
+//--------------------------------------------------------------------------------------------------------------------------
+
+void update_rate(){
+  scroll_rate = INITIAL_RATE - (rotary_controller.get_count()*20);
+  if (scroll_rate <= 0){
+    scroll_rate = 1;
+  }
+  Serial.print("Rotary Count: ");
+  Serial.println(rotary_controller.get_count());
+  display_panel.showNumberDec(scroll_rate);
+  delay(RATE_FLASH);
+  Serial.print("Scroll Rate: ");
+  Serial.println(scroll_rate);
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+
+void updateEncoder(){
+  rotary_controller.service();
+}
